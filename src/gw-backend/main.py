@@ -7,9 +7,12 @@ import serial
 import paho.mqtt.client as mqtt
 import threading
 import time
+import configparser
 
-key = bytearray.fromhex("AB 12 34")
-waspmote = "/dev/ttyUSB1"
+
+key = None
+config = None
+mqttc = None
 
 
 def on_connect(client, userdata, flags, rc):
@@ -56,14 +59,16 @@ def serialRead(ser, mqttc):
             if line == "E#v2":
                 print("Init Message")
                 continue
-            encryptedMsg = bytearray.fromhex(line)
-            decryptedMsg = xor(encryptedMsg, len(encryptedMsg), key, len(key))
-            decryptedStr = toHexArrayStr(toHexArrayInt(decryptedMsg))
-            mqttc.publish("atlas", decryptedStr)
+
+            # encryptedMsg = bytearray.fromhex(line)
+            # decryptedMsg = xor(encryptedMsg, len(encryptedMsg), key, len(key))
+            # decryptedStr = toHexArrayStr(toHexArrayInt(decryptedMsg))
+            # mqttc.publish('atlas', decryptedStr)
+            mqttc.publish('atlas/up', line)
 
 
 def initClients():
-    serialClient = serial.Serial(port=waspmote,
+    serialClient = serial.Serial(port=config['waspmote_device'],
                                  baudrate=115200,
                                  parity=serial.PARITY_NONE,
                                  stopbits=serial.STOPBITS_ONE,
@@ -72,7 +77,7 @@ def initClients():
     client = mqtt.Client()
     client.on_connect = on_connect
     client.on_message = on_message
-    client.connect("83.212.112.107", 1883, 60)
+    client.connect(config['mqtt_ip'], 1883, 60)
 
     return serialClient, client
 
@@ -80,11 +85,14 @@ def initClients():
 if __name__ == '__main__':
     print("Start of the program")
     ser = None
-    mqttc = None
     try:
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+        config = config.defaults()
         ser, mqttc = initClients()
         ser.flushOutput()
         ser.flushInput()
+        key = bytearray.fromhex(config["nw_key"])
     except Exception as e:
         print(e)
         exit(1)
