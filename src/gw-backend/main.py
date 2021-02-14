@@ -49,22 +49,33 @@ def toHexArrayStr(input):
     return ret
 
 
+def read_until(ser, eol, timeout=1):
+    msg = b''
+    endTime = time.time() + timeout
+    while True:
+        ch = ser.read()
+        msg = msg + ch
+        if ch == eol:
+            break
+        if time.time() > endTime:
+            raise TimeoutError
+    return msg
+
 
 def serialRead(ser, mqttc):
     print("serial read")
+
     while 1:
         if ser.in_waiting > 0:
-            line = ser.readline().decode('UTF-8')
-            line = line[:-2]  # Remove the last two characters for new line /r/n
-            if line == "E#v2":
-                print("Init Message")
-                continue
-
-            # encryptedMsg = bytearray.fromhex(line)
-            # decryptedMsg = xor(encryptedMsg, len(encryptedMsg), key, len(key))
-            # decryptedStr = toHexArrayStr(toHexArrayInt(decryptedMsg))
-            # mqttc.publish('atlas', decryptedStr)
-            mqttc.publish('atlas/up', line)
+            try:
+                line = read_until(ser, b'\n').decode('UTF-8')
+                line = line[:-2]  # Remove the last two characters for new line /r/n
+                if line == "E#v2":
+                    print("Init Message")
+                    continue
+                mqttc.publish('atlas/up', line)
+            except TimeoutError:
+                print("TIMEOUT")
 
 
 def initClients():
