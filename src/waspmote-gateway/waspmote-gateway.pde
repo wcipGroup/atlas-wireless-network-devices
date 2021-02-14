@@ -56,7 +56,17 @@ void getPacketData(int len) {
 //    snprintf(data, sizeof(data),"%s%c", data,sx1272.packet_received.data[i]);/
     data[i] = sx1272.packet_received.data[i];
   }
-  USB.println(data);
+  
+  sx1272.getSNR();
+  sx1272.getRSSI();
+  USB.print("{'DATA': ");
+  USB.print(data);
+  USB.print(", 'SNR': ");
+  USB.print(sx1272._SNR);
+  USB.print(", 'RSSI': ");
+  USB.print(sx1272._RSSI);
+  USB.println("}");
+  
 }
 
 void loop()
