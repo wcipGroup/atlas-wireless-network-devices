@@ -66,8 +66,12 @@ void setup()
   USB.println(F("----------------------------------------"));
   USB.println(F("Waiting join accept:")); 
   USB.println(F("----------------------------------------"));
-  
-//  delay(2500);/
+  e = sx1272.receivePacketMAXTimeout();
+  if ( e == 0 )
+  {
+    getPacketData(sx1272.packet_received.length);  
+  }
+  USB.println("end of setup");
 }
 
 void sendHex(uint8_t *hexArray, int size){
@@ -97,16 +101,18 @@ void printHexArray(uint8_t *hexArray, int size){
 }
 
 
-byte* readPacket(){
-  
-  uint8_t len = sx1272.packet_received.length;
-  byte hex_data[len];
-  for (int i=0; i<len; i++){
-    hex_data[i] = sx1272.packet_received.data[i];
+void getPacketData(int len) {
+  char data[len];
+  strcpy( data, "F" );
+  for ( int i = 0; i < len; i++) {
+//    snprintf(data, sizeof(data),"%s%c", data,sx1272.packet_received.data[i]);/
+    data[i] = sx1272.packet_received.data[i];
   }
-  return hex_data;
+  USB.print("DATA: ");
+  USB.println(data);
+  
 }
-
+  
 void prepareJoinRequest(){
   join_request[0] = 0x2B;
   join_request[1] = 0x2B;
