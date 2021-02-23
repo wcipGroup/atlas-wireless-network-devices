@@ -59,13 +59,13 @@ void getPacketData(int len) {
   
   sx1272.getSNR();
   sx1272.getRSSI();
-  USB.print("{'DATA': ");
+  USB.print("{\"DATA\": \"");
   USB.print(data);
-  USB.print(", 'SNR': ");
+  USB.print("\", \"SNR\": \"");
   USB.print(sx1272._SNR);
-  USB.print(", 'RSSI': ");
+  USB.print("\", \"RSSI\": \"");
   USB.print(sx1272._RSSI);
-  USB.println("}");
+  USB.println("\"}");
   
 }
 
