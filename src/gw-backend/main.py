@@ -8,7 +8,7 @@ import paho.mqtt.client as mqtt
 import threading
 import time
 import configparser
-
+import json
 
 key = None
 config = None
@@ -17,7 +17,7 @@ mqttc = None
 
 def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
-    client.subscribe("atlas/+")
+    client.subscribe("atlas/down")
 
 
 def on_message(client, userdata, msg):
@@ -73,7 +73,9 @@ def serialRead(ser, mqttc):
                 if line == "E#v2":
                     print("Init Message")
                     continue
-                mqttc.publish('atlas/up', line)
+                linejs = json.loads(line)
+                linejs['TMSTMP'] = int(time.time())
+                mqttc.publish('atlas/up', json.dumps(linejs))
             except TimeoutError:
                 print("TIMEOUT")
 
