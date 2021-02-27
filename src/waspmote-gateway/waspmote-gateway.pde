@@ -3,10 +3,11 @@
 
 // status variable
 int8_t e;
-char dl_message[100];
 unsigned long timeout_amount = 4000;
 
-
+char message[100];
+char dl_data [100];
+char dl_devAddr [10];
 
 void setup()
 {
@@ -26,28 +27,38 @@ void setup()
   // Select the node address value: from 2 to 255
   e = sx1272.setNodeAddress(1);
 
-  strcpy(dl_message, "");
-
   delay(1000);
 }
 
-char* USBreadString() {
-  char message[100];
+bool USBreadString(char dl_data[], char dl_devAddr[]) {
+  bool ret_flag = false;
   int val = 0;
   unsigned long TIMEOUT = millis() + timeout_amount;
   while (!USB.available() && millis() < TIMEOUT)
   {
     //wait for available
   }
+  
   strcpy( message, "" );
   while (USB.available() > 0)
   {
+    ret_flag = true;
     val = USB.read();
-    snprintf(message, sizeof(message), "%s%c", message, val);
+    if (val == 47) //character "/"
+    {
+      strcpy (dl_data, message);
+      strcpy (message, "");
+    }else if (val == 38) //character "&"
+    {
+      strcpy (dl_devAddr, message);
+      strcpy (message, "");
+    }else
+    {
+      snprintf(message, sizeof(message), "%s%c", message, val);  
+    }
   }
-  USB.flush();
-  return message;
-};
+  return ret_flag;
+}
 
 void getPacketData(int len) {
   char data[len];
@@ -77,12 +88,10 @@ void loop()
   // check rx status
   if ( e == 0 )
   {
-//    sx1272.showReceivedPacket();/
     getPacketData(sx1272.packet_received.length);
-    strcpy(dl_message, USBreadString());
-    if (dl_message[0] != 0) {
-      sx1272.sendPacketTimeout( 2, dl_message);
-      strcpy(dl_message, "");
+    if (USBreadString(dl_data, dl_devAddr))
+    {
+      sx1272.sendPacketTimeout( atoi(dl_devAddr), dl_data);
     }
   }
 
