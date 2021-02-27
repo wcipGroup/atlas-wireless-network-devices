@@ -7,7 +7,13 @@ int8_t e;
 char NwKey[] = "AB1234";
 uint8_t NwKeyB[3] = {0xAB, 0x12, 0x34};
 char buffer_up[200];
+char buffer_down[200];
+uint8_t encryptedResponse[200];
 uint8_t join_request[10];
+char dl_message[100];
+int join_num_try = 0;
+int join_retries = 2;
+bool joined = false;
 
 void setup()
 {
@@ -27,52 +33,91 @@ void setup()
   e = sx1272.setNodeAddress(2);
   
   delay(1000);  
-  
-  USB.println(F("----------------------------------------"));
-  USB.println(F("Sending join request:")); 
-  USB.println(F("----------------------------------------"));
 
+  join_the_network();  
   
   
-  prepareJoinRequest();
-  USB.print("nwkew ");
-  printHexArray(NwKeyB, sizeof(NwKeyB));
-  USB.println("");
-  
-  USB.print("join request: ");
-  printHexArray(join_request, sizeof(join_request));
-  USB.println("");
-
-  uint8_t encryptedMsg[sizeof(join_request)];
-  xor2(encryptedMsg, join_request, sizeof(join_request), NwKeyB, sizeof(NwKeyB));
-
-  USB.print("encryptedMsg: ");
-  printHexArray(encryptedMsg, sizeof(encryptedMsg));
-  USB.println("");
-  
-//  sendJoinRequest();
-  sendHex(encryptedMsg, sizeof(encryptedMsg));
-  if( e == 0 ) 
-  {
-    USB.println(F("Join Request sent OK"));     
-  }
-  else 
-  {
-    USB.print(F("Error sending Join Request."));  
-    USB.print(F("state: "));
-    USB.println(e, DEC);
-  }
-  
-  USB.println(F("----------------------------------------"));
-  USB.println(F("Waiting join accept:")); 
-  USB.println(F("----------------------------------------"));
-  e = sx1272.receivePacketMAXTimeout();
-  if ( e == 0 )
-  {
-    getPacketData(sx1272.packet_received.length);  
-  }
   USB.println("end of setup");
 }
+
+
+void join_the_network()
+{
+  while (!joined && join_num_try < join_retries)
+  {
+    USB.print("Num of try: ");
+    USB.println(join_num_try);
+    USB.println(F("----------------------------------------"));
+    USB.println(F("Sending join request:")); 
+    USB.println(F("----------------------------------------"));
+  
+    
+  ///Create the body of the message for the join request  
+    prepareJoinRequest();
+  ///Encrypt the body of the message using the network key
+    uint8_t encryptedMsg[sizeof(join_request)];
+    xor2(encryptedMsg, join_request, sizeof(join_request), NwKeyB, sizeof(NwKeyB));
+  ///Send the message using LoRa
+    sendHex(encryptedMsg, sizeof(encryptedMsg));
+    if( e == 0 ) 
+    {
+      USB.println(F("Join Request sent OK"));
+      USB.println(F("----------------------------------------"));
+      USB.println(F("Waiting join accept:")); 
+      USB.println(F("----------------------------------------"));
+      e = sx1272.receivePacketMAXTimeout();
+      USB.print("TO E: ");
+      USB.println(e);
+      if ( e == 0 )
+      {
+        char buffer_down[sx1272.packet_received.length-5];
+        strcpy(buffer_down, getPacketData(sx1272.packet_received.length));
+        USB.println(buffer_down);
+        uint16_t responseSize;
+        responseSize = Utils.str2hex(buffer_down, encryptedResponse, sizeof(encryptedResponse));
+        
+        USB.print("encrypted Response: ");
+        printHexArray(encryptedResponse, responseSize );
+        uint8_t decryptedResponse[responseSize];
+        xor2(decryptedResponse, encryptedResponse, responseSize, NwKeyB, sizeof(NwKeyB));
+        USB.print("decrypted Response: ");
+        printHexArray(decryptedResponse, responseSize);
+        USB.println(decryptedResponse[0], DEC);
+        USB.println(decryptedResponse[0], HEX);
+        if (decryptedResponse[0] == 43)
+        {
+          joined = true;
+          USB.println("JOINED");
+//          /TODO: handle the response and save the app key.
+        }else
+        {
+          USB.println("ERROR at join request.");
+          join_num_try = join_num_try + 1;
+        }
+      }else
+      {
+        USB.println("ERROR at receiving join accept.");
+        join_num_try = join_num_try + 1;
+      }
+    }
+    else 
+    {
+      USB.print(F("Error sending Join Request."));  
+      USB.print(F("state: "));
+      USB.println(e, DEC);
+      join_num_try = join_num_try + 1;
+    }
+    if (join_num_try == join_retries && !joined)
+    {
+      USB.println("Max retries. Wait 10 sec and try again");
+      PWR.deepSleep("00:00:00:10",RTC_OFFSET,RTC_ALM1_MODE1,ALL_ON);
+      USB.println("Wake up!");
+      join_num_try = 0;
+    }
+  }
+  
+}
+
 
 void sendHex(uint8_t *hexArray, int size){
   USB.println("sending");
@@ -101,7 +146,7 @@ void printHexArray(uint8_t *hexArray, int size){
 }
 
 
-void getPacketData(int len) {
+char* getPacketData(int len) {
   char data[len];
   strcpy( data, "F" );
   for ( int i = 0; i < len; i++) {
@@ -110,6 +155,7 @@ void getPacketData(int len) {
   }
   USB.print("DATA: ");
   USB.println(data);
+  return data;
   
 }
   
