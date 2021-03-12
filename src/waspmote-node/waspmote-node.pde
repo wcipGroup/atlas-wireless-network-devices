@@ -10,15 +10,25 @@ char buffer_up[200];
 char buffer_down[200];
 uint8_t encryptedResponse[200];
 uint8_t join_request[10];
+uint8_t data_pckt[32];
+uint8_t encrypted_data_pckt[32];
 char dl_message[100];
 int join_num_try = 0;
 int join_retries = 2;
 bool joined = false;
 
+///test sensor data
+float temp_value = 24.5;
+float PH_value = 7.8;
+float DO_value = 87;
+float cond_value = 33;
+
+
 void setup()
 {
   USB.ON();
   sx1272.ON();
+  Utils.setLED(LED0, LED_ON);
 
   e = sx1272.setChannel(CH_10_868);
 
@@ -38,6 +48,7 @@ void setup()
   
   
   USB.println("end of setup");
+  Utils.setLED(LED0, LED_OFF);
 }
 
 
@@ -113,6 +124,7 @@ void join_the_network()
       PWR.deepSleep("00:00:00:10",RTC_OFFSET,RTC_ALM1_MODE1,ALL_ON);
       USB.println("Wake up!");
       join_num_try = 0;
+      Utils.setLED(LED0, LED_ON);
     }
   }
   
@@ -170,21 +182,67 @@ void prepareJoinRequest(){
   join_request[9] = 0x0A;
 }
 
+void prepareDataPckt(){
+  data_pckt[0] = 0x2B;
+  data_pckt[1] = 0x2B;
+  data_pckt[2] = 0x04; //Data message
+  data_pckt[3] = devAddr;
+  data_pckt[4] = 0x04; //Num of sensors [Temp, Conductivity, PH, DO]
+  get_temp(5);
+  get_ph(10);
+  get_do(15);
+  get_cond(20);
+  for (int i = 25; i< 31; i++){
+    data_pckt[i] = 0x00; //4 bytes of timestamp that i dont have rtc and 2 bytes of NU (not used)  
+  }
+  data_pckt[31] = 0x20; //len = 32 bytes
+}
+
+void get_temp(int idx){
+  data_pckt[idx] = 0x01; //SensorId
+  for (int i=0; i<4; i++)
+  {
+    data_pckt[idx+i+1] = ((uint8_t*)&temp_value)[i];  
+  }
+}
+
+void get_ph(int idx){
+  data_pckt[idx] = 0x02; //SensorId
+  for (int i=0; i<4; i++)
+  {
+    data_pckt[idx+i+1] = ((uint8_t*)&PH_value)[i];  
+  }
+}
+
+void get_do(int idx){
+  data_pckt[idx] = 0x03; //SensorId
+  for (int i=0; i<4; i++)
+  {
+    data_pckt[idx+i+1] = ((uint8_t*)&DO_value)[i];  
+  }
+}
+
+void get_cond(int idx){
+  data_pckt[idx] = 0x04; //SensorId
+  for (int i=0; i<4; i++)
+  {
+    data_pckt[idx+i+1] = ((uint8_t*)&cond_value)[i];  
+  }
+}
 
 void loop()
 {
-  delay(5000);
-  USB.print(".");
-//  USB.println(F("----------------------------------------"));
-//  USB.println(F("Waiting to receive:")); 
-//  USB.println(F("----------------------------------------"));
-//  // Sending packet before ending a timeout
-//  while(!sx1272.receivePacketMAXTimeout()){
-//      USB.println(F("\nShow packet received: "));
-//      // show packet received
-//      sx1272.showReceivedPacket();
-//      USB.println(sx1272.packet_received.length, DEC);
-//  }
+  USB.print("Wake up!");
+  //Prepare the data frame
+  prepareDataPckt();
+  printHexArray(data_pckt, sizeof(data_pckt));
+  ///Encrypt the body of the message using the network key
+  xor2(encrypted_data_pckt, data_pckt, sizeof(data_pckt), NwKeyB, sizeof(NwKeyB));
+  ///Send the message using LoRa
+  sendHex(encrypted_data_pckt, sizeof(encrypted_data_pckt));
+  USB.println("Data Frame sent!");
+  USB.println("Go to sleep!");
+  PWR.deepSleep("00:00:05:00",RTC_OFFSET,RTC_ALM1_MODE1,ALL_ON);
 }
 
 
