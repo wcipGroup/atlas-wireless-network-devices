@@ -18,14 +18,19 @@ mqttc = None
 def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
     client.subscribe("atlas/down")
+    client.subscribe("atlas/action")
 
 
 def on_message(client, userdata, msg):
-    print(msg.topic+" "+str(msg.payload))
-    ser.write(msg.payload)
-    ser.flushInput()
-    ser.flushOutput()
+    if msg.topic == 'atlas/down':
+        ser.write(msg.payload)
+        ser.flushInput()
+        ser.flushOutput()
+    elif msg.topic =='atlas/action':
+        doAction(msg.payload)
 
+def doAction(action):
+    print(action)
 
 def xor(input, inSize, key, keySize):
     strs = ""
