@@ -16,21 +16,23 @@ mqttc = None
 
 
 def on_connect(client, userdata, flags, rc):
-    print("Connected with result code "+str(rc))
-    client.subscribe("atlas/down")
-    client.subscribe("atlas/action")
+    print("Connected with result code " + str(rc))
+    client.subscribe("atlas/%s/down" % config["gw_id"])
+    client.subscribe("atlas/%s/action" % config["gw_id"])
 
 
 def on_message(client, userdata, msg):
-    if msg.topic == 'atlas/down':
+    if msg.topic == "atlas/%s/down" % config["gw_id"]:
         ser.write(msg.payload)
         ser.flushInput()
         ser.flushOutput()
-    elif msg.topic =='atlas/action':
+    elif msg.topic == "atlas/%s/action" % config["gw_id"]:
         doAction(msg.payload)
+
 
 def doAction(action):
     print(action)
+
 
 def xor(input, inSize, key, keySize):
     strs = ""
@@ -67,9 +69,17 @@ def read_until(ser, eol, timeout=1):
     return msg
 
 
-def serialRead(ser, mqttc):
-    print("serial read")
+#Use this as 'lastSeen' functionality at network server for the gateways
+def heartBeat(mqttc):
+    while 1:
+        try:
+            mqttc.publish("atlas/%s/gw_heartbeat" % config["gw_id"], "alive")
+            time.sleep(60)
+        except Exception:
+            time.sleep(60)
+            
 
+def serialRead(ser, mqttc):
     while 1:
         if ser.in_waiting > 0:
             try:
@@ -80,7 +90,7 @@ def serialRead(ser, mqttc):
                     continue
                 linejs = json.loads(line)
                 linejs['TMSTMP'] = int(time.time())
-                mqttc.publish('atlas/up', json.dumps(linejs))
+                mqttc.publish("atlas/%s/up" % config["gw_id"], json.dumps(linejs))
             except TimeoutError:
                 print("TIMEOUT")
 
@@ -115,11 +125,9 @@ if __name__ == '__main__':
         print(e)
         exit(1)
     print("End of INIT")
-    x = threading.Thread(target=serialRead, args=(ser, mqttc,))
-    x.start()
+    threading.Thread(target=serialRead, args=(ser, mqttc,)).start()
+    threading.Thread(target=heartBeat, args=(mqttc,)).start()
     mqttc.loop_forever()
-
-
 
 # encrypted = xor(input, len(input), key, len(key))
 # encrStr = toHexArrayStr(toHexArrayInt(encrypted))
