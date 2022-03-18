@@ -1,8 +1,10 @@
 
 #include <WaspSX1272.h>
 
-uint8_t gw_address = 1;
-uint8_t devAddr = 2;
+///Change this!!
+uint8_t gw_address = 40;
+uint8_t devAddr = 41;
+///******************************
 int8_t e;
 char NwKey[] = "AB1234";
 uint8_t NwKeyB[3] = {0xAB, 0x12, 0x34};
@@ -40,7 +42,7 @@ void setup()
 
   e = sx1272.setPower('L');
 
-  e = sx1272.setNodeAddress(2);
+  e = sx1272.setNodeAddress(devAddr);
   
   delay(1000);  
 
@@ -77,8 +79,6 @@ void join_the_network()
       USB.println(F("Waiting join accept:")); 
       USB.println(F("----------------------------------------"));
       e = sx1272.receivePacketMAXTimeout();
-      USB.print("TO E: ");
-      USB.println(e);
       if ( e == 0 )
       {
         char buffer_down[sx1272.packet_received.length-5];
@@ -108,6 +108,8 @@ void join_the_network()
       }else
       {
         USB.println("ERROR at receiving join accept.");
+        USB.print(F("state: "));
+        USB.println(e, DEC);
         join_num_try = join_num_try + 1;
       }
     }
