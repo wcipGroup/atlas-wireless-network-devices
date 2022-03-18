@@ -1,9 +1,13 @@
 
 #include <WaspSX1272.h>
 
+///Change This!
+uint8_t gw_address = 40;
+///**************
 // status variable
 int8_t e;
 unsigned long timeout_amount = 4000;
+
 
 char message[100];
 char dl_data [100];
@@ -25,7 +29,7 @@ void setup()
   e = sx1272.setPower('L');
 
   // Select the node address value: from 2 to 255
-  e = sx1272.setNodeAddress(1);
+  e = sx1272.setNodeAddress(gw_address);
 
   delay(1000);
 }
@@ -38,7 +42,6 @@ bool USBreadString(char dl_data[], char dl_devAddr[]) {
   {
     //wait for available
   }
-  
   strcpy( message, "" );
   while (USB.available() > 0)
   {
@@ -60,14 +63,14 @@ bool USBreadString(char dl_data[], char dl_devAddr[]) {
   return ret_flag;
 }
 
-void getPacketData(int len) {
+///Forward message to gw-backend through serial interface
+void getForwardPacketData(int len) {
   char data[len];
   strcpy( data, "F" );
   for ( int i = 0; i < len; i++) {
 //    snprintf(data, sizeof(data),"%s%c", data,sx1272.packet_received.data[i]);/
     data[i] = sx1272.packet_received.data[i];
   }
-  
   sx1272.getSNR();
   sx1272.getRSSI();
   USB.print("{\"DATA\": \"");
@@ -77,24 +80,23 @@ void getPacketData(int len) {
   USB.print("\", \"RSSI\": \"");
   USB.print(sx1272._RSSI);
   USB.println("\"}");
-  
 }
 
 void loop()
 {
   // receive packet
   e = sx1272.receivePacketMAXTimeout();
-
   // check rx status
   if ( e == 0 )
   {
-    getPacketData(sx1272.packet_received.length);
+    getForwardPacketData(sx1272.packet_received.length);
+    //Check and forward replies as downlink packets
     if (USBreadString(dl_data, dl_devAddr))
     {
       sx1272.sendPacketTimeout( atoi(dl_devAddr), dl_data);
     }
   }
-
+  
 }
 
 
