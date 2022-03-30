@@ -26,10 +26,16 @@ float DO_value = 87;
 float cond_value = 33;
 
 
+///init mac 
+int interval = 5; //minutes
+
+boolean debug = true;
+
 void setup()
 {
   USB.ON();
   sx1272.ON();
+  RTC.ON();
   Utils.setLED(LED0, LED_ON);
 
   e = sx1272.setChannel(CH_10_868);
@@ -46,10 +52,12 @@ void setup()
   
   delay(1000);  
 
-  join_the_network();  
-  
+  if (!debug){
+    join_the_network();    
+  }
   
   USB.println("end of setup");
+  
   Utils.setLED(LED0, LED_OFF);
 }
 
@@ -234,17 +242,52 @@ void get_cond(int idx){
 
 void loop()
 {
-  USB.print("Wake up!");
+  USB.print("Wake up! Time: ");
+  USB.println(RTC.getTime());
   //Prepare the data frame
   prepareDataPckt();
-  printHexArray(data_pckt, sizeof(data_pckt));
   ///Encrypt the body of the message using the network key
   xor2(encrypted_data_pckt, data_pckt, sizeof(data_pckt), NwKeyB, sizeof(NwKeyB));
   ///Send the message using LoRa
   sendHex(encrypted_data_pckt, sizeof(encrypted_data_pckt));
   USB.println("Data Frame sent!");
+  //Check for downlink mac comand
+  e = sx1272.receivePacketMAXTimeout();
+  if ( e == 0 )
+  {
+    char buffer_down[sx1272.packet_received.length-5];
+    strcpy(buffer_down, getPacketData(sx1272.packet_received.length));
+    USB.println(buffer_down);
+    uint16_t responseSize;
+    responseSize = Utils.str2hex(buffer_down, encryptedResponse, sizeof(encryptedResponse));
+    uint8_t decryptedResponse[responseSize];
+    xor2(decryptedResponse, encryptedResponse, responseSize, NwKeyB, sizeof(NwKeyB));
+    USB.print("decrypted Response: ");
+    printHexArray(decryptedResponse, responseSize);
+    if (decryptedResponse[0] == decryptedResponse[1] & decryptedResponse[0] == 0x2B){//Mac response
+      if(decryptedResponse[2] == 0x25){//Change interval
+        interval = decryptedResponse[4];
+      }
+      if(decryptedResponse[2] == 0x45){//Change tx power
+        if (decryptedResponse[4] == 0){
+          e = sx1272.setPower('L');
+        }if (decryptedResponse[4] == 1){
+          e = sx1272.setPower('M');
+        }if (decryptedResponse[4] == 2){
+          e = sx1272.setPower('H');
+        }
+      }
+    }
+  }
+  ///Setting up the correct sleep interval
+  
+  if (interval<1) {interval=1;}
+  if (interval>60) {interval=60;}
+  RTC.setAlarm1(0,0,interval,0,RTC_OFFSET,RTC_ALM1_MODE2);
+  USB.println(RTC.getAlarm1());
   USB.println("Go to sleep!");
-  PWR.deepSleep("00:00:05:00",RTC_OFFSET,RTC_ALM1_MODE1,ALL_ON);
+  PWR.sleep(ALL_ON);
+  delay(10);
 }
 
 
